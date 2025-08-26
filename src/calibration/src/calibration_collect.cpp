@@ -15,6 +15,7 @@
 #include <opencv2/opencv.hpp>
 #include "dobot_msgs_v3/srv/get_pose.hpp"
 #include "csv_write.h"
+#include <filesystem>
 
 using namespace std::chrono_literals;
 using GetPoseClient = dobot_msgs_v3::srv::GetPose;
@@ -23,13 +24,11 @@ class Calibration : public rclcpp::Node
 {
 public:
     Calibration() : Node("calibration_control"){
-        // rgb_sensor_subscription_ = this->create_subscription<sensor_msgs::msg::Image>("/turtle1/raw_image", 10,
-        //     std::bind(&Calibration::on_rgb_image_received_, this, std::placeholders::_1));
-        // pose_subscription_ = this->create_subscription<geometry_msgs::msg::PoseStamped>("/turtle1/pose", 10,
-        //     std::bind(&Calibration::on_pose_received_, this, std::placeholders::_1));
-        //
-        // get_pose_client_ = this->create_client<GetPoseClient>("getposeclient");
-        // timer_ = this->create_wall_timer(10s, std::bind(&Calibration::TimerCallback, this));
+        rgb_sensor_subscription_ = this->create_subscription<sensor_msgs::msg::Image>("/turtle1/raw_image", 10,
+            std::bind(&Calibration::on_rgb_image_received_, this, std::placeholders::_1));
+
+        get_pose_client_ = this->create_client<GetPoseClient>("getposeclient");
+        timer_ = this->create_wall_timer(10s, std::bind(&Calibration::TimerCallback, this));
     }
 
     void on_pose_received_(const geometry_msgs::msg::PoseStamped::SharedPtr msg){
@@ -61,8 +60,16 @@ public:
         }
     }
     void InitCalibration(){
-        // auto message = geometry_msgs::msg::Twist();
-        // velocity_publisher_->publish(message);
+        std::filesystem::path dirPath = "calibration";
+
+        if (!std::filesystem::exists(dirPath)) {
+            std::filesystem::create_directories(dirPath);
+            std::cout << "Directory created!" << std::endl;
+        } else {
+            std::cout << "Directory already exists!" << std::endl;
+        }
+
+        csv_writer_.OpenCsvFile("calibration/calibration.csv");
     }
     void NextPoint()
     {
@@ -72,7 +79,8 @@ public:
         get_pose_client_->async_send_request(request,[&](rclcpp::Client<GetPoseClient>::SharedFuture result_future) -> void{
             auto response = result_future.get();
               if (response->res == 0){
-                  response->pose;
+                  auto pose_str = this->ParsePoseString(response->pose);
+                  csv_writer_.InsertStringData(pose_str);
                   RCLCPP_INFO(this->get_logger(), "目标点处理成功");
               }else{
                 RCLCPP_INFO(this->get_logger(), "目标点处理失败");
@@ -80,8 +88,8 @@ public:
             });
     }
     void TriggerCalibration(){
-        // auto message = geometry_msgs::msg::Twist();
-        // velocity_publisher_->publish(message);
+        csv_writer_.CloseFile();
+        //TODO: 通知标定
     }
     void TimerCallback(){
         while (!get_pose_client_->wait_for_service(1s)){
@@ -107,12 +115,11 @@ public:
 
         return filename_stream.str();
     }
-    std::vector<std::string> ParsePoseString(std::string input) {
+    std::string ParsePoseString(std::string input) {
         if (input.empty())
-            return std::vector<std::string>();
+            return std::string();
 
-        std::vector<std::string> res;
-
+        std::string res;
         size_t start = input.find("{");
         std::string errorID = input.substr(0, start - 1);
         std::cout << "ErrorID: " << errorID << std::endl;
@@ -120,25 +127,7 @@ public:
         start = input.find("{") + 1;
         size_t end = input.find("}");
         std::string pose = input.substr(start, end - start);
-
-        std::stringstream ss(pose);
-        std::string value;
-
-        while (getline(ss, value, ',')) {
-            res.push_back(value);
-        }
-
-        std::cout << "Position (X, Y, Z): " << res[0] << ", " << res[1] << ", " << res[2] << std::endl;
-        std::cout << "Rotation (Rx, Ry, Rz): " << res[3] << ", " << res[4] << ", " << res[5] << std::endl;
-
-        start = input.find("User=") + 5;
-        size_t userEnd = input.find(",", start);
-        std::string userIndex = input.substr(start, userEnd - start);
-
-        start = input.find("Tool=") + 5;
-        std::string toolIndex = input.substr(start, input.find(")", start) - start);
-
-        std::cout << "User Index: " << userIndex << ", Tool Index: " << toolIndex << std::endl;
+        std::cout << "Pose: " << pose << std::endl;
 
         return res;
     }
@@ -147,19 +136,14 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_subscription_;
     rclcpp::Client<GetPoseClient>::SharedPtr get_pose_client_;
     rclcpp::TimerBase::SharedPtr timer_;
-
+    CSVWriter csv_writer_;
 };
 
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
-
     auto node = std::make_shared<Calibration>();
-    std::string input = "1,{30,60,90,0.2,0.3,0.4},GetPose(User=1,Tool=2);";
-    node->ParsePoseString(input);
     geometry_msgs::msg::PoseStamped::SharedPtr msg = std::make_shared<geometry_msgs::msg::PoseStamped>();
-
-
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;

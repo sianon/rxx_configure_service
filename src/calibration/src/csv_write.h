@@ -20,6 +20,7 @@ public:
     void OpenCsvFile(std::string filename, std::string format="x,y,z,r,p,y\n");
     void CloseFile();
     void InsertData(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
+    void InsertStringData(std::string msg);
 
     unsigned int GetCountNum();
 private:

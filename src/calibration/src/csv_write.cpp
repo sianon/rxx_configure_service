@@ -41,6 +41,10 @@ void CSVWriter::InsertData(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
     // RCLCPP_INFO(this->get_logger(), "Pose data written to CSV.");
 }
 
+void CSVWriter::InsertStringData(std::string msg){
+    csv_file_ << msg << "\n";
+}
+
 unsigned int CSVWriter::GetCountNum(){
     std::string line;
     int line_count = 0;
