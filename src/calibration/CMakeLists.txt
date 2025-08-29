@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(calibration_collect)
+project(calibration)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -12,24 +12,40 @@ find_package(sensor_msgs REQUIRED)
 find_package(dobot_msgs_v3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+
+#pkg_check_modules(LIBNL REQUIRED libnl-3.0 libnl-genl-3.0)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBNL REQUIRED libnl-3.0 libnl-genl-3.0)
+
+# 包含 libnl 头文件
+include_directories(${LIBNL_INCLUDE_DIRS})
+
+# 链接 libnl 库
+link_directories(${LIBNL_LIBRARY_DIRS})
 
 include_directories(${OpenCV_INCLUDE_DIR})
 link_directories(${OpenCV_LIB_DIR})
 
-add_executable(turtle_circle  src/turtle_circle.cpp)
-ament_target_dependencies(turtle_circle rclcpp geometry_msgs sensor_msgs)
-
-add_executable(calibration_collect src/calibration_collect.cpp
-        src/csv_write.cpp
-        src/csv_write.h)
-ament_target_dependencies(calibration_collect rclcpp geometry_msgs sensor_msgs dobot_msgs_v3 OpenCV cv_bridge)
+add_executable(network_test src/network_test.cpp
+        src/network_config.cpp
+        src/network_config.h
+        src/network_control.cpp
+        src/network_control.h
+        src/csv_write.h
+        src/csv_write.cpp)
+ament_target_dependencies(network_test rclcpp geometry_msgs sensor_msgs dobot_msgs_v3 cv_bridge tf2_geometry_msgs)
 
 install(TARGETS
-        calibration_collect
-        turtle_circle
+        network_test
+#        calibration_test
         DESTINATION lib/${PROJECT_NAME}
 )
 
+install(DIRECTORY launch
+        DESTINATION share/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
