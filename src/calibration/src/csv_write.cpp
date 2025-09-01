@@ -12,7 +12,7 @@ void CSVWriter::OpenCsvFile(std::string filename, std::string format){
     csv_file_.open(filename, std::ios::in | std::ios::out | std::ios::trunc);
 
     if(csv_file_.tellp() == 0){
-        csv_file_ << format;
+        // csv_file_ << format;
     }
 }
 

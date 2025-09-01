@@ -13,10 +13,10 @@ public:
     ~NetworkConfig();
 
     bool GetAllInterfaceNames(std::vector<std::string>& interfaces);
-    std::string GetAllInterfaceInfo(const httplib::Request& req, httplib::Response& resp);
+    void GetAllInterfaceInfo(const httplib::Request& req, httplib::Response& resp);
 
     bool SetInterfaceInfo(std::string info);
-    bool SetInterfaceApi(const httplib::Request& req, httplib::Response& res);
+    void SetInterfaceApi(const httplib::Request& req, httplib::Response& res);
 
     std::string GetIPAddress(const std::string interface);
     bool SetIPAddress(const std::string interface, const std::string ip_address);

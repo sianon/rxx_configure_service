@@ -6,11 +6,12 @@ bool NetworkControl::InitHttpService(int port)
 {
     port_ = port;
     http_server_.set_base_dir("./");
+    network_config_ = std::make_shared<NetworkConfig>();
+
     ClientGetHttpFunc();
     ClientPostHttpFunc();
 
     bool status = http_server_.listen("0.0.0.0", port_);
-
     return status;
 }
 void NetworkControl::ClientGetHttpFunc()
@@ -20,7 +21,7 @@ void NetworkControl::ClientGetHttpFunc()
     http_server_.Get("/rxx/CalibrationDone", std::bind(&Calibration::TriggerCalibration, calibration_, std::placeholders::_1, std::placeholders::_2));
 
     http_server_.Get("/rxx/GetInterface", std::bind(&NetworkConfig::GetAllInterfaceInfo, network_config_, std::placeholders::_1, std::placeholders::_2));
-    http_server_.Get("/rxx/GetInterface", std::bind(&NetworkConfig::SetInterfaceApi, network_config_, std::placeholders::_1, std::placeholders::_2));
+    http_server_.Get("/rxx/SetInterface", std::bind(&NetworkConfig::SetInterfaceApi, network_config_, std::placeholders::_1, std::placeholders::_2));
 }
 void NetworkControl::ClientPostHttpFunc()
 {

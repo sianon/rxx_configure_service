@@ -10,6 +10,7 @@ find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(dobot_msgs_v3 REQUIRED)
+find_package(calibration_srv REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -35,7 +36,7 @@ add_executable(network_test src/network_test.cpp
         src/network_control.h
         src/csv_write.h
         src/csv_write.cpp)
-ament_target_dependencies(network_test rclcpp geometry_msgs sensor_msgs dobot_msgs_v3 cv_bridge tf2_geometry_msgs)
+ament_target_dependencies(network_test rclcpp geometry_msgs sensor_msgs dobot_msgs_v3 cv_bridge tf2_geometry_msgs calibration_srv)
 
 install(TARGETS
         network_test

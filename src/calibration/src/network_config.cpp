@@ -37,8 +37,7 @@ NetworkConfig::~NetworkConfig()
 
 bool NetworkConfig::GetAllInterfaceNames(std::vector<std::string>& interfaces)
 {
-    if (!is_valid)
-    {
+    if (!is_valid){
         return false;
     }
 
@@ -49,43 +48,54 @@ bool NetworkConfig::GetAllInterfaceNames(std::vector<std::string>& interfaces)
     ifc.ifc_len = sizeof(buffer);
     ifc.ifc_buf = buffer;
 
-    if (ioctl(sockfd, SIOCGIFCONF, &ifc) == -1)
-    {
+    if (ioctl(sockfd, SIOCGIFCONF, &ifc) == -1){
         std::cerr << "Unable to Get interface information!" << std::endl;
         return false;
     }
-
+    memcpy(ifr, buffer, ifc.ifc_len);
     int num_interfaces = ifc.ifc_len / sizeof(struct ifreq);
-    for (int i = 0; i < num_interfaces; i++)
-    {
+    for (int i = 0; i < num_interfaces; i++){
         interfaces.push_back(ifr[i].ifr_name);
     }
 
     return true;
 }
 
-std::string NetworkConfig::GetAllInterfaceInfo(const httplib::Request& req, httplib::Response& resp)
+void NetworkConfig::GetAllInterfaceInfo(const httplib::Request& req, httplib::Response& resp)
 {
     nlohmann::json interfaces = nlohmann::json::array();
     std::vector<std::string> vec_if;
+    GetAllInterfaceNames(vec_if);
 
-    for (auto va : vec_if)
-    {
+    for (auto va : vec_if){
         auto ip = GetIPAddress(va);
         auto mask = GetNetmask(va);
         auto dns = GetDNS(va);
         auto gateway = GetGateway(va);
 
         nlohmann::json intf = {
+            {"name", va},
+            {"ip_address", ip},
+            {"netmask", mask},
+            {"gateway", gateway},
+            {"dns", dns}
+
         };
+
+        interfaces.push_back(intf);
     }
 
     nlohmann::json json_info = {
-        "data",{
-            "interface",interfaces
+        {
+            "data", {
+                {"interfaces", interfaces}
+            }
         }
     };
 
+    resp.set_content(json_info.dump(-1), "application/json");
+    resp.status = 200;
+    resp.reason = "OK";
 }
 
 std::string NetworkConfig::GetIPAddress(const std::string interface)
@@ -243,7 +253,7 @@ bool NetworkConfig::SetInterfaceInfo(std::string info)
 
     return res;
 }
-bool NetworkConfig::SetInterfaceApi(const httplib::Request& req, httplib::Response& resp)
+void NetworkConfig::SetInterfaceApi(const httplib::Request& req, httplib::Response& resp)
 {
     nlohmann::json json_info = nlohmann::json::parse(req.body);
 
@@ -268,11 +278,9 @@ bool NetworkConfig::SetInterfaceApi(const httplib::Request& req, httplib::Respon
     };
 
 
-    resp.set_content(json_res, "application/json");
+    resp.set_content(json_res.dump(-1), "application/json");
     resp.status = 200;
     resp.reason = "OK";
-
-    return res;
 }
 
 bool NetworkConfig::SetGateway(std::string interface,std::string gateway)

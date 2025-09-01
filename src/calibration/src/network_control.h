@@ -18,7 +18,7 @@ private:
     int port_ = 10001;
     httplib::Server http_server_;
     std::shared_ptr<Calibration> calibration_;
-    NetworkConfig network_config_;
+    std::shared_ptr<NetworkConfig> network_config_;
 };
 
 
