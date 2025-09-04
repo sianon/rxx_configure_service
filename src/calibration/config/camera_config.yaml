@@ -1,0 +1,24 @@
+d435:
+  seria_num: "10002"
+
+test_grap1:
+  seria_num: "10003"
+
+  {
+    "status": 0,
+    "cur_selected": "test_grap",
+    "data": {
+      "arms_config": [
+        {
+          "name": "test_grap",
+          "port": 10001,
+          "baud_rate": 115200
+        },
+        {
+          "name": "realman",
+          "port": 10001,
+          "baud_rate": 115200
+        }
+      ]
+    }
+  }

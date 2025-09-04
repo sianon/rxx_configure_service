@@ -1,0 +1,6 @@
+test_grap:
+  port: 33333
+  baud_rate: 33333
+realman:
+  port: 10001
+  baud_rate: 115200

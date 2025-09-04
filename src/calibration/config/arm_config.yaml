@@ -1,0 +1,5 @@
+Dobot:
+  ip_address: "192.168.1.110"
+
+realman:
+  ip_address: "192.168.1.111"

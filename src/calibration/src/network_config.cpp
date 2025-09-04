@@ -11,7 +11,6 @@
 #include "network_config.h"
 
 #include "json.hpp"
-#include "json.hpp"
 
 NetworkConfig::NetworkConfig()
 {
@@ -70,7 +69,7 @@ void NetworkConfig::GetAllInterfaceInfo(const httplib::Request& req, httplib::Re
     for (auto va : vec_if){
         auto ip = GetIPAddress(va);
         auto mask = GetNetmask(va);
-        auto dns = GetDNS(va);
+        auto dns = GetDNS(va).front();
         auto gateway = GetGateway(va);
 
         nlohmann::json intf = {
