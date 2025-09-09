@@ -15,6 +15,9 @@ public:
     void ClientGetHttpFunc();
     void ClientPostHttpFunc();
     void SetCalibrationNode(std::shared_ptr<Calibration> node);
+
+    void FileDownload(const httplib::Request& req, httplib::Response& res);
+    void FileUpload(const httplib::Request& req, httplib::Response& res, const httplib::ContentReader &content_reader);
 private:
     int port_ = 10001;
     httplib::Server http_server_;

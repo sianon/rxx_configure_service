@@ -35,12 +35,68 @@ void NetworkControl::ClientGetHttpFunc()
     http_server_.Get("/rxx/SetCameraConf", std::bind(&DeviceLaunchConf::SetCameraConf, device_config_, std::placeholders::_1, std::placeholders::_2));
 }
 
-void NetworkControl::ClientPostHttpFunc()
-{
-
+void NetworkControl::ClientPostHttpFunc(){
+    http_server_.Post("/rxx/Upload", httplib::Server::HandlerWithContentReader(std::bind(&NetworkControl::FileUpload, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)));
+    http_server_.Post("/rxx/Download", httplib::Server::Handler(std::bind(&NetworkControl::FileDownload, this, std::placeholders::_1, std::placeholders::_2)));
 }
 
 void NetworkControl::SetCalibrationNode(std::shared_ptr<Calibration> node)
 {
     calibration_ = node;
+}
+
+void NetworkControl::FileDownload(const httplib::Request& req, httplib::Response& res){
+    std::cout << req.body << std::endl;
+    std::cerr << "Server-log: download\t" << req.path_params.at("id") << "\t" << req.get_header_value("Content-Type") <<
+        std::endl;
+
+    res.set_header("Cache-Control", "no-cache");
+    res.set_header("Content-Disposition", "attachment; filename=hello.txt");
+    res.set_chunked_content_provider("multipart/form-data", [](size_t offset, httplib::DataSink& sink){
+            const char arr[] = "hello world";
+            auto ret = sink.write(arr + offset, sizeof(arr));
+            sink.done();
+            std::cerr << "\tdownload write:" << sizeof(arr) << std::endl;
+            return !!ret;
+        });
+}
+
+void NetworkControl::FileUpload(const httplib::Request& req, httplib::Response& res, const httplib::ContentReader& content_reader){
+    // nlohmann::json json_info = nlohmann::json::parse(req.body);
+    std::cout << res.body << std::endl;
+    std::string str_data;
+    using namespace  httplib;
+
+    if (req.is_multipart_form_data()) {
+        std::vector<FormData> items;
+        content_reader(
+          [&](const FormData &item) {
+            items.push_back(item);
+            return true;
+          },
+          [&](const char *data, size_t data_length) {
+            items.back().content.append(data, data_length);
+            return true;
+          });
+
+        for (const auto& item : items) {
+            if (item.filename.empty()) {
+                // Text field
+                std::cout << "Field: " << item.name << " = " << item.content << std::endl;
+            } else {
+                // File
+                std::cout << "File: " << item.name << " (" << item.filename << ") - "
+                          << item.content.size() << " bytes" << std::endl;
+            }
+        }
+    } else {
+        std::string body;
+        content_reader([&](const char *data, size_t data_length) {
+            body.append(data, data_length);
+            std::cerr << "\tupload read:" << data_length << std::endl;
+            return true;
+        });
+        std::cerr << "\tupload read " << body << std::endl;
+    }
+
 }

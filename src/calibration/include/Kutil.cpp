@@ -1,0 +1,40 @@
+//
+// Created by cao on 9/9/25.
+//
+
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include "base64.h"
+#include "Kutil.h"
+
+std::string Kutil::EncodeFile2Base64(const std::string& filepath) {
+    std::ifstream file(filepath, std::ios::binary);
+    if (!file) {
+        std::cerr << "无法打开文件: " << filepath << std::endl;
+        return "";
+    }
+
+    std::vector<char> file_data((std::istreambuf_iterator<char>(file)),
+                                std::istreambuf_iterator<char>());
+    file.close();
+
+    std::string sst(file_data.begin(), file_data.end());
+
+    return base64_encode(sst);
+}
+
+void Kutil::Base643File(const std::string& base64_str, const std::string& output_filepath) {
+    std::string decoded = base64_decode(base64_str);
+
+    std::ofstream output_file(output_filepath, std::ios::binary);
+    if (!output_file) {
+        std::cerr << "无法打开文件: " << output_filepath << std::endl;
+        return;
+    }
+
+    output_file.write(decoded.data(), decoded.size());
+    output_file.close();
+
+    std::cout << "文件已成功保存为: " << output_filepath << std::endl;
+}

@@ -42,7 +42,11 @@ add_executable(network_test src/network_test.cpp
         src/csv_write.h
         src/csv_write.cpp
         src/device_launch_conf.cpp
-        src/device_launch_conf.h)
+        src/device_launch_conf.h
+        include/base64.h
+        include/base64.cpp
+        include/Kutil.cpp
+        include/Kutil.h)
 target_link_libraries(network_test yaml-cpp)
 ament_target_dependencies(network_test rclcpp geometry_msgs sensor_msgs dobot_msgs_v3 cv_bridge tf2_geometry_msgs calibration_srv)
 
