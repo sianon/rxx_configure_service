@@ -5,10 +5,13 @@
 #include "calibration_collect.cpp"
 #include "network_config.h"
 #include "device_launch_conf.h"
+#include "json.hpp"
 
 class NetworkControl {
 public:
-    NetworkControl(){};
+    NetworkControl(){
+        models_data_path_ = "/home/cao/amodels/";
+    };
     ~NetworkControl(){};
 
     bool InitHttpService(int port);
@@ -17,13 +20,31 @@ public:
     void SetCalibrationNode(std::shared_ptr<Calibration> node);
 
     void FileDownload(const httplib::Request& req, httplib::Response& res);
-    void FileUpload(const httplib::Request& req, httplib::Response& res, const httplib::ContentReader &content_reader);
+    void FileUpload(const httplib::Request& req, httplib::Response& res);
+    void QueryModelWithUid(const httplib::Request& req, httplib::Response& res);
+    bool UpdateAll2DB();
+    bool FetchDB();
+    bool SaveData2File();
+    bool SyncSingleModel2DB(nlohmann::json data, std::string url);
+    bool test();
+    void DbListenEvent();
+    bool DownloadDbObj2Disk(httplib::Client& cli, std::string id, std::string url, std::string path);
+
+    std::map<std::string, nlohmann::json> GetAllModels(){
+        return all_model_json_b64;
+    };
 private:
     int port_ = 10001;
     httplib::Server http_server_;
     std::shared_ptr<Calibration> calibration_;
     std::shared_ptr<NetworkConfig> network_config_;
     std::shared_ptr<DeviceLaunchConf> device_config_;
+    std::map<std::string, nlohmann::json> all_model_json_b64;
+    std::string db_name_;
+    std::thread db_listen_;
+    std::string last_seq;
+    std::map<std::string, nlohmann::json> will_be_process_evt_;
+    std::string models_data_path_;
 };
 
 

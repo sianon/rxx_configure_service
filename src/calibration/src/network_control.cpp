@@ -1,17 +1,23 @@
 
 #include "network_control.h"
 #include <functional>
-
+#include "base64.h"
+#include "Kutil.h"
+#include <filesystem>
+#include <iostream>
 bool NetworkControl::InitHttpService(int port)
 {
     port_ = port;
     http_server_.set_base_dir("./");
     network_config_ = std::make_shared<NetworkConfig>();
     device_config_ = std::make_shared<DeviceLaunchConf>();
-
+    last_seq = "now";
+    db_name_ = "/my_database/";
+    FetchDB();
     ClientGetHttpFunc();
     ClientPostHttpFunc();
-
+    db_listen_ = std::thread(std::bind(&NetworkControl::DbListenEvent, this));
+    // db_listen_.detach();
     bool status = http_server_.listen("0.0.0.0", port_);
     return status;
 }
@@ -36,8 +42,9 @@ void NetworkControl::ClientGetHttpFunc()
 }
 
 void NetworkControl::ClientPostHttpFunc(){
-    http_server_.Post("/rxx/Upload", httplib::Server::HandlerWithContentReader(std::bind(&NetworkControl::FileUpload, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)));
+    http_server_.Post("/rxx/Upload", httplib::Server::Handler(std::bind(&NetworkControl::FileUpload, this, std::placeholders::_1, std::placeholders::_2)));
     http_server_.Post("/rxx/Download", httplib::Server::Handler(std::bind(&NetworkControl::FileDownload, this, std::placeholders::_1, std::placeholders::_2)));
+    http_server_.Post("/rxx/Query", httplib::Server::Handler(std::bind(&NetworkControl::QueryModelWithUid, this, std::placeholders::_1, std::placeholders::_2)));
 }
 
 void NetworkControl::SetCalibrationNode(std::shared_ptr<Calibration> node)
@@ -45,58 +52,253 @@ void NetworkControl::SetCalibrationNode(std::shared_ptr<Calibration> node)
     calibration_ = node;
 }
 
-void NetworkControl::FileDownload(const httplib::Request& req, httplib::Response& res){
-    std::cout << req.body << std::endl;
-    std::cerr << "Server-log: download\t" << req.path_params.at("id") << "\t" << req.get_header_value("Content-Type") <<
-        std::endl;
+void NetworkControl::FileDownload(const httplib::Request& req, httplib::Response& resp){
+    nlohmann::json models_json_root = nlohmann::json::array();
 
-    res.set_header("Cache-Control", "no-cache");
-    res.set_header("Content-Disposition", "attachment; filename=hello.txt");
-    res.set_chunked_content_provider("multipart/form-data", [](size_t offset, httplib::DataSink& sink){
-            const char arr[] = "hello world";
-            auto ret = sink.write(arr + offset, sizeof(arr));
-            sink.done();
-            std::cerr << "\tdownload write:" << sizeof(arr) << std::endl;
-            return !!ret;
-        });
-}
+    std::map<std::string, nlohmann::json> model_str;
+    model_str = GetAllModels();
 
-void NetworkControl::FileUpload(const httplib::Request& req, httplib::Response& res, const httplib::ContentReader& content_reader){
-    // nlohmann::json json_info = nlohmann::json::parse(req.body);
-    std::cout << res.body << std::endl;
-    std::string str_data;
-    using namespace  httplib;
+    if (req.body.empty()){
+        for (auto va : model_str){
+            models_json_root.push_back(va.second);
+        }
+    }else{
+        nlohmann::json json_info = nlohmann::json::parse(req.body);
 
-    if (req.is_multipart_form_data()) {
-        std::vector<FormData> items;
-        content_reader(
-          [&](const FormData &item) {
-            items.push_back(item);
-            return true;
-          },
-          [&](const char *data, size_t data_length) {
-            items.back().content.append(data, data_length);
-            return true;
-          });
-
-        for (const auto& item : items) {
-            if (item.filename.empty()) {
-                // Text field
-                std::cout << "Field: " << item.name << " = " << item.content << std::endl;
-            } else {
-                // File
-                std::cout << "File: " << item.name << " (" << item.filename << ") - "
-                          << item.content.size() << " bytes" << std::endl;
+        int start_index= json_info["data"]["start_index"];
+        int num = json_info["data"]["num"];
+        std::vector<std::pair<std::string, nlohmann::json>> vec(model_str.begin(), model_str.end());
+        if ((start_index + num) < vec.size()){
+            for (auto it = vec.begin() + start_index; it != vec.begin() + start_index + num; ++it){
+                models_json_root.push_back(it->second);
             }
         }
-    } else {
-        std::string body;
-        content_reader([&](const char *data, size_t data_length) {
-            body.append(data, data_length);
-            std::cerr << "\tupload read:" << data_length << std::endl;
-            return true;
-        });
-        std::cerr << "\tupload read " << body << std::endl;
     }
 
+    nlohmann::json json_info = {
+        {
+            "data", {
+                            {"models", models_json_root}
+            }
+        }
+    };
+
+    resp.set_content(json_info.dump(-1), "application/json");
+    resp.status = 200;
+    resp.reason = "OK";
+}
+
+void NetworkControl::FileUpload(const httplib::Request& req, httplib::Response& resp){
+    if (req.body.empty()){
+        return;
+    }
+
+    std::map<std::string, nlohmann::json> upload_model_json;
+    nlohmann::json json_info = nlohmann::json::parse(req.body);
+
+    auto models_data = json_info["data"];
+    bool res = false;
+    for (const auto& model_json : models_data["models"]){
+        SyncSingleModel2DB(model_json, "");
+        Kutil::Base642File(model_json["content_b64"], model_json["uid"]);
+    }
+
+    int status = res ? 0 : 1;
+
+    nlohmann::json json_res = {
+        {
+            "data",{
+                    {"status",status},
+                    {"err_msg",0}
+            }
+        }
+    };
+
+    resp.set_content(json_res.dump(-1), "application/json");
+    resp.status = 200;
+    resp.reason = "OK";
+}
+
+void NetworkControl::QueryModelWithUid(const httplib::Request& req, httplib::Response& resp){
+    if (req.body.empty()){
+        return;
+    }
+
+    std::map<std::string, nlohmann::json> upload_model_json;
+    nlohmann::json json_info = nlohmann::json::parse(req.body);
+
+    auto models_data = json_info["data"];
+    bool res = false;
+
+    auto data_2_resp = all_model_json_b64[models_data["uid"]];
+
+    int status = res ? 0 : 1;
+
+    nlohmann::json json_resp = {
+        {
+            "data", {
+                        {"models", data_2_resp}
+            }
+        }
+    };
+
+    resp.set_content(json_resp.dump(-1), "application/json");
+    resp.status = 200;
+    resp.reason = "OK";
+}
+
+bool NetworkControl::UpdateAll2DB(){
+
+    for (auto va : all_model_json_b64){
+        SyncSingleModel2DB(va.second, "");
+    }
+
+    return true;
+}
+
+bool NetworkControl::FetchDB(){
+    httplib::Client cli("http://localhost:5984");
+
+    std::string username = "admin";
+    std::string password = "rxx123456";
+    std::string auth = username + ":" + password;
+    std::string auth_base64 = base64_encode(reinterpret_cast<const unsigned char*>(auth.c_str()), auth.length());
+
+    cli.set_default_headers({{"Authorization", "Basic " + auth_base64}});
+
+    auto res = cli.Get("/my_database/_all_docs");
+
+    nlohmann::json json_info = nlohmann::json::parse(res->body);
+
+    nlohmann::json rows = json_info["rows"];
+    std::map<std::string, nlohmann::json> all_model_json;
+    for (auto va : rows){
+        all_model_json_b64[va["id"]] = "";
+    }
+
+    for (auto va : all_model_json_b64){
+        auto tmp = cli.Get(db_name_ + va.first);
+
+        nlohmann::json json_obj = nlohmann::json::parse(tmp->body);
+        all_model_json_b64[va.first] = json_obj;
+
+        std::cout << json_obj.dump(-1)<<std::endl;
+
+        if (res && res->status == 200) {
+            std::cout << "Document retrieved: " << res->body << std::endl;
+        } else {
+            std::cout << "Failed to retrieve document. Status code: " << res->status << std::endl;
+        }
+    }
+
+    return true;
+}
+
+bool NetworkControl::SaveData2File(){
+    for (auto va : all_model_json_b64){
+        Kutil::Base642File(va.second["content_b64"], va.first + ".obj");
+    }
+
+    return true;
+}
+
+bool NetworkControl::SyncSingleModel2DB(nlohmann::json data, std::string url){
+    httplib::Client cli("http://localhost:5984");
+
+    std::string username = "admin";
+    std::string password = "rxx123456";
+    std::string auth = username + ":" + password;
+    std::string auth_base64 = base64_encode(reinterpret_cast<const unsigned char*>(auth.c_str()), auth.length());
+
+    cli.set_default_headers({{"Authorization", "Basic " + auth_base64}});
+
+    std::string t_url = db_name_ + std::string(data["uid"]);
+
+    auto res = cli.Put(url, data.dump(-1), "application/json");
+
+    if (res->status == 200 || res->status == 201 || res->status == 202) {
+        std::cout << "Document retrieved: " << res->body << std::endl;
+        std::string url_t = db_name_ + std::string(data["uid"]);
+        auto j_tmp = cli.Get(url_t);
+        all_model_json_b64[std::string(data["uid"])] = nlohmann::json::parse(j_tmp->body);
+    } else {
+        std::cout << "Failed to retrieve document. Status code: " << res->status << std::endl;
+    }
+}
+
+bool NetworkControl::test(){
+    std::string b64_obj = Kutil::EncodeFile2Base64("tmp.obj");
+
+    FetchDB();
+    nlohmann::json pose_list = nlohmann::json::array();
+    pose_list.push_back("x,y,z,r,p,y");
+    pose_list.push_back("x,y,z,r,p,y");
+    nlohmann::json json_obj = {
+        {"name", "cellphone"},
+        {"uid", "223fds1240"},
+        {"pose", pose_list},
+        {"content_base64", b64_obj}
+    };
+
+    int index = 1;
+    for (int i = 0; i < 3; i++){
+        json_obj["uid"] = json_obj["uid"].get<std::string>() + std::to_string(index);
+        all_model_json_b64[std::to_string(i)] = json_obj;
+        std::cout << json_obj.dump(-1)<<std::endl;
+    }
+
+    UpdateAll2DB();
+
+    return true;
+}
+void NetworkControl::DbListenEvent(){
+    httplib::Client cli("http://localhost:5984");
+    last_seq = "now";
+    db_name_ = "/test_model/";
+    std::string username = "admin";
+    std::string password = "rxx123456";
+    std::string auth = username + ":" + password;
+    std::string auth_base64 = base64_encode(reinterpret_cast<const unsigned char*>(auth.c_str()), auth.length());
+
+    cli.set_default_headers({{"Authorization", "Basic " + auth_base64}});
+
+    while (true){
+        // std::string t_url = db_name_ + "_changes" + "?include_docs=true&feed=continuous&since=" + last_seq;
+        std::string t_url = db_name_ + "_changes?include_docs=true";
+        auto res = cli.Get(t_url);
+        nlohmann::json res_json = nlohmann::json::parse(res->body)["results"];
+        for (auto va : res_json){
+            if (!va.contains("doc") || va.contains("deleted") || !va["doc"].contains("_attachments")){
+                continue;
+            }
+
+            std::cout << va.dump(-1) << std::endl;
+            auto items = va["doc"]["_attachments"].items();
+            if (items.begin() != items.end()){
+                auto filename = items.begin().key();
+                std::string url = db_name_ + std::string(va["doc"]["_id"]) + "/" + filename;
+                std::string pat = models_data_path_ + filename;
+                std::cout << url << std::endl;
+                DownloadDbObj2Disk(cli, va["doc"]["_id"], url, pat);
+            }
+        }
+
+        last_seq = nlohmann::json::parse(res->body)["last_seq"];
+    }
+}
+
+bool NetworkControl::DownloadDbObj2Disk(httplib::Client& cli, std::string id, std::string url, std::string path){
+    std::string file_pat = models_data_path_ + id + "/";
+
+    if (!std::filesystem::exists(file_pat) && std::filesystem::is_directory(file_pat)){
+        std::filesystem::create_directory(file_pat);
+    }
+
+    auto res = cli.Get(url);
+
+    std::ofstream outfile(file_pat + path, std::ios::binary);
+    outfile.write(res->body.c_str(), res->body.size());
+    outfile.close();
+
+    return  true;
 }
