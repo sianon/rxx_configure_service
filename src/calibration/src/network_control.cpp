@@ -271,34 +271,67 @@ void NetworkControl::DbListenEvent(){
             if (!va.contains("doc") || va.contains("deleted") || !va["doc"].contains("_attachments")){
                 continue;
             }
+            auto id = std::string(va["doc"]["_id"]);
+            auto json_url =  db_name_ + id;
+
+            DownloadDbPose2Disk(cli, id, json_url, id + ".json");
 
             std::cout << va.dump(-1) << std::endl;
             auto items = va["doc"]["_attachments"].items();
-            if (items.begin() != items.end()){
-                auto filename = items.begin().key();
-                std::string url = db_name_ + std::string(va["doc"]["_id"]) + "/" + filename;
-                std::string pat = models_data_path_ + filename;
-                std::cout << url << std::endl;
-                DownloadDbObj2Disk(cli, va["doc"]["_id"], url, pat);
+            if (items.begin() == items.end()){
+                continue;
             }
+
+            auto filename = items.begin().key();
+            std::string url = db_name_ + id + "/" + filename;
+            std::string pat = models_data_path_ + filename;
+            std::cout << url << std::endl;
+            DownloadDbObj2Disk(cli, id, url, filename);
+
         }
 
         last_seq = nlohmann::json::parse(res->body)["last_seq"];
     }
 }
 
-bool NetworkControl::DownloadDbObj2Disk(httplib::Client& cli, std::string id, std::string url, std::string path){
+bool NetworkControl::DownloadDbObj2Disk(httplib::Client& cli, std::string id, std::string url, std::string name){
     std::string file_pat = models_data_path_ + id + "/";
-
-    if (!std::filesystem::exists(file_pat) && std::filesystem::is_directory(file_pat)){
-        std::filesystem::create_directory(file_pat);
+    bool res = true;
+    if (!std::filesystem::exists(file_pat)){
+        res = std::filesystem::create_directory(file_pat);
     }
 
-    auto res = cli.Get(url);
+    auto response = cli.Get(url);
 
-    std::ofstream outfile(file_pat + path, std::ios::binary);
-    outfile.write(res->body.c_str(), res->body.size());
+    if (response->status == 200 || response->status == 201 || response->status == 202){
+
+    }
+    std::ofstream outfile(file_pat + name, std::ios::binary);
+    outfile.write(response->body.c_str(), response->body.size());
     outfile.close();
 
-    return  true;
+    return res;
+}
+
+bool NetworkControl::DownloadDbPose2Disk(httplib::Client& cli, std::string id, std::string url, std::string name){
+    std::string file_pat = models_data_path_ + id + "/";
+    bool res = true;
+    if (!std::filesystem::exists(file_pat)){
+        res = std::filesystem::create_directory(file_pat);
+    }
+
+    auto response = cli.Get(url);
+
+    nlohmann::json json_info = nlohmann::json::parse(response->body);
+
+    std::cout << json_info.dump(-1) << std::endl;
+    if (response->status == 200 || response->status == 201 || response->status == 202){
+
+    }
+
+    std::ofstream outfile(file_pat + name, std::ios::binary);
+    outfile.write(response->body.c_str(), response->body.size());
+    outfile.close();
+
+    return res;
 }

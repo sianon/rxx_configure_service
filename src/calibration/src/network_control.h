@@ -29,6 +29,7 @@ public:
     bool test();
     void DbListenEvent();
     bool DownloadDbObj2Disk(httplib::Client& cli, std::string id, std::string url, std::string path);
+    bool DownloadDbPose2Disk(httplib::Client& cli, std::string id, std::string url, std::string name);
 
     std::map<std::string, nlohmann::json> GetAllModels(){
         return all_model_json_b64;
