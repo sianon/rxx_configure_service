@@ -252,7 +252,7 @@ bool NetworkControl::test(){
     return true;
 }
 void NetworkControl::DbListenEvent(){
-    httplib::Client cli("http://localhost:5984");
+    httplib::Client cli("http://10.11.2.84:5984");
     last_seq = "now";
     db_name_ = "/test_model/";
     std::string username = "admin";
@@ -271,12 +271,14 @@ void NetworkControl::DbListenEvent(){
             if (!va.contains("doc") || va.contains("deleted") || !va["doc"].contains("_attachments")){
                 continue;
             }
+
             auto id = std::string(va["doc"]["_id"]);
-            auto json_url =  db_name_ + id;
 
-            DownloadDbPose2Disk(cli, id, json_url, id + ".json");
+            DownloadDbPose2Disk(id, id + ".json", va);
 
+            AddFileName(cli, va);
             std::cout << va.dump(-1) << std::endl;
+
             auto items = va["doc"]["_attachments"].items();
             if (items.begin() == items.end()){
                 continue;
@@ -313,25 +315,40 @@ bool NetworkControl::DownloadDbObj2Disk(httplib::Client& cli, std::string id, st
     return res;
 }
 
-bool NetworkControl::DownloadDbPose2Disk(httplib::Client& cli, std::string id, std::string url, std::string name){
+bool NetworkControl::DownloadDbPose2Disk(std::string id, std::string name, nlohmann::json doc){
     std::string file_pat = models_data_path_ + id + "/";
     bool res = true;
     if (!std::filesystem::exists(file_pat)){
         res = std::filesystem::create_directory(file_pat);
     }
 
-    auto response = cli.Get(url);
-
-    nlohmann::json json_info = nlohmann::json::parse(response->body);
-
-    std::cout << json_info.dump(-1) << std::endl;
-    if (response->status == 200 || response->status == 201 || response->status == 202){
-
+    if (!doc.contains("pose")){
+        return false;
     }
 
-    std::ofstream outfile(file_pat + name, std::ios::binary);
-    outfile.write(response->body.c_str(), response->body.size());
+
+    std::cout << doc.dump(-1) << std::endl;
+
+    nlohmann::json json_pose = {
+        "pose", doc["pose"]
+    };
+    std::cout << json_pose.dump(-1) << std::endl;
+    std::ofstream outfile(file_pat + name, std::ios::out | std::ios::trunc);
+    outfile.write(json_pose.dump(-1).c_str(), json_pose.dump(-1).size());
     outfile.close();
 
     return res;
+}
+
+bool NetworkControl::AddFileName(httplib::Client& cli, nlohmann::json doc){
+    std::string url = models_data_path_ + std::string(doc["_id"]);
+
+    auto file_name = doc["_attachments"].begin().key();
+    doc["name"] = file_name;
+
+    auto response = cli.Put(url, doc.dump(), "application/json");
+
+    nlohmann::json json_info = nlohmann::json::parse(response->body);
+
+    return true;
 }

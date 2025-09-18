@@ -20,16 +20,16 @@ find_package(tf2_geometry_msgs REQUIRED)
 #pkg_check_modules(LIBNL REQUIRED libnl-3.0 libnl-genl-3.0)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBNL REQUIRED libnl-3.0 libnl-genl-3.0)
+#pkg_check_modules(LIBNL REQUIRED libnl-3.0 libnl-genl-3.0)
 
 find_package(yaml-cpp CONFIG REQUIRED)
 message(STATUS "Found yaml-cpp version: ${yaml-cpp_VERSION}")
 message(STATUS "yaml-cpp library path: ${YAML_CPP_LIBRARY}")
 # 包含 libnl 头文件
-include_directories(${LIBNL_INCLUDE_DIRS})
+#include_directories(${LIBNL_INCLUDE_DIRS})
 include_directories(include)
 # 链接 libnl 库
-link_directories(${LIBNL_LIBRARY_DIRS})
+#link_directories(${LIBNL_LIBRARY_DIRS})
 
 include_directories(${OpenCV_INCLUDE_DIR})
 link_directories(${OpenCV_LIB_DIR})

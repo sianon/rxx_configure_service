@@ -10,7 +10,7 @@
 class NetworkControl {
 public:
     NetworkControl(){
-        models_data_path_ = "/home/cao/amodels/";
+        models_data_path_ = "/home/rxx/jk/amodels/";
     };
     ~NetworkControl(){};
 
@@ -29,7 +29,8 @@ public:
     bool test();
     void DbListenEvent();
     bool DownloadDbObj2Disk(httplib::Client& cli, std::string id, std::string url, std::string path);
-    bool DownloadDbPose2Disk(httplib::Client& cli, std::string id, std::string url, std::string name);
+    bool DownloadDbPose2Disk(std::string id, std::string name, nlohmann::json doc);
+    bool AddFileName(httplib::Client& cli, nlohmann::json doc);
 
     std::map<std::string, nlohmann::json> GetAllModels(){
         return all_model_json_b64;
