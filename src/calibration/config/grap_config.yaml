@@ -1,0 +1,10 @@
+"cur_selected": "test_grap"
+
+"arms_config":
+    "name": "test_grap"
+    "port": 10001
+    "baud_rate": 115200
+"ak":
+    "name": "realman"
+    "port": 10001
+    "baud_rate": 115200

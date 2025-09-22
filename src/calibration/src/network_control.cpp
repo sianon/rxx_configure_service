@@ -254,7 +254,7 @@ bool NetworkControl::test(){
 void NetworkControl::DbListenEvent(){
     httplib::Client cli("http://10.11.2.84:5984");
     last_seq = "now";
-    db_name_ = "/test_model/";
+    db_name_ = "/rxx/";
     std::string username = "admin";
     std::string password = "rxx123456";
     std::string auth = username + ":" + password;
@@ -263,9 +263,12 @@ void NetworkControl::DbListenEvent(){
     cli.set_default_headers({{"Authorization", "Basic " + auth_base64}});
 
     while (true){
-        // std::string t_url = db_name_ + "_changes" + "?include_docs=true&feed=continuous&since=" + last_seq;
-        std::string t_url = db_name_ + "_changes?include_docs=true";
+        std::string t_url = db_name_ + "_changes" + "?include_docs=true&feed=longpoll&since=" + last_seq;
         auto res = cli.Get(t_url);
+        auto tmp = nlohmann::json::parse(res->body);
+        if(!tmp.contains("results")){
+            continue;
+        }
         nlohmann::json res_json = nlohmann::json::parse(res->body)["results"];
         for (auto va : res_json){
             if (!va.contains("doc") || va.contains("deleted") || !va["doc"].contains("_attachments")){
@@ -274,9 +277,8 @@ void NetworkControl::DbListenEvent(){
 
             auto id = std::string(va["doc"]["_id"]);
 
-            DownloadDbPose2Disk(id, id + ".json", va);
+            DownloadDbPose2Disk(id, id + ".json", va["doc"]);
 
-            AddFileName(cli, va);
             std::cout << va.dump(-1) << std::endl;
 
             auto items = va["doc"]["_attachments"].items();
@@ -288,6 +290,7 @@ void NetworkControl::DbListenEvent(){
             std::string url = db_name_ + id + "/" + filename;
             std::string pat = models_data_path_ + filename;
             std::cout << url << std::endl;
+            AddFileName(cli, va["doc"]);
             DownloadDbObj2Disk(cli, id, url, filename);
 
         }
@@ -318,12 +321,13 @@ bool NetworkControl::DownloadDbObj2Disk(httplib::Client& cli, std::string id, st
 bool NetworkControl::DownloadDbPose2Disk(std::string id, std::string name, nlohmann::json doc){
     std::string file_pat = models_data_path_ + id + "/";
     bool res = true;
-    if (!std::filesystem::exists(file_pat)){
-        res = std::filesystem::create_directory(file_pat);
-    }
 
     if (!doc.contains("pose")){
         return false;
+    }
+
+    if (!std::filesystem::exists(file_pat)){
+        res = std::filesystem::create_directory(file_pat);
     }
 
 
@@ -341,11 +345,19 @@ bool NetworkControl::DownloadDbPose2Disk(std::string id, std::string name, nlohm
 }
 
 bool NetworkControl::AddFileName(httplib::Client& cli, nlohmann::json doc){
-    std::string url = models_data_path_ + std::string(doc["_id"]);
+    // if (doc.contains("name")){
+    //     return true;
+    // }
+
+    std::string url = db_name_ + std::string(doc["_id"]);
 
     auto file_name = doc["_attachments"].begin().key();
-    doc["name"] = file_name;
 
+    if (doc.contains("name") && doc["name"] == file_name){
+        return true;
+    }
+
+    doc["name"] = file_name;
     auto response = cli.Put(url, doc.dump(), "application/json");
 
     nlohmann::json json_info = nlohmann::json::parse(response->body);
