@@ -6,6 +6,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 #set(YAML_CPP_DIR "/usr/local/lib/cmake/yaml-cpp")
+find_package(PkgConfig REQUIRED)
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -16,10 +17,8 @@ find_package(calibration_srv REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+add_definitions(-DCPPHTTPLIB_NO_SSL)
 
-#pkg_check_modules(LIBNL REQUIRED libnl-3.0 libnl-genl-3.0)
-
-find_package(PkgConfig REQUIRED)
 #pkg_check_modules(LIBNL REQUIRED libnl-3.0 libnl-genl-3.0)
 
 find_package(yaml-cpp CONFIG REQUIRED)
