@@ -1,0 +1,109 @@
+//标定
+GET http://10.11.2.156:10001/rxx/CalibrationStart
+Accept: application/json
+###
+
+GET http://10.11.2.156:10001/rxx/CalibrationNext
+Accept: application/json
+###
+
+GET http://10.11.2.156:10001/rxx/CalibrationDone
+Accept: application/json
+###
+
+//网卡信息
+GET http://10.11.2.156:10001/rxx/GetInterface
+Accept: application/json
+###
+
+GET http://10.11.2.156:10001/rxx/SetInterface
+Accept: application/json
+###
+
+//末端配置
+GET http://10.11.2.156:10001/rxx/SetGripPawlConf
+Content-Type: application/json
+
+{
+    "data": {
+      "grippawls": [
+        {
+          "name": "ak",
+          "port": 33333,
+          "baud_rate": 33333,
+          "selected": 1
+        }
+      ]
+    }
+}
+###
+
+GET http://10.11.2.156:10001/rxx/GetGripPawlConf
+Accept: application/json
+###
+
+//臂配置
+GET http://10.11.2.156:10001/rxx/GetArmConf
+Accept: application/json
+###
+
+GET http://10.11.2.156:10001/rxx/SetArmConf
+Content-Type: application/json
+
+{
+  "data": {
+    "arms": [
+      {
+        "name": "realman",
+        "ip_address": "22222",
+        "selected": 1
+      }
+    ]
+  }
+}
+
+###
+
+//相机配置
+GET http://10.11.2.156:10001/rxx/GetCameraConf
+Accept: application/json
+###
+
+GET http://10.11.2.156:10001/rxx/SetCameraConf
+Content-Type: application/json
+
+{
+    "data":{
+    "cameras": [
+        {
+          "name": "d435",
+          "seria_num": "222222",
+          "selected": 1
+        }
+      ]
+    }
+}
+
+###
+
+//路径设置
+GET http://10.11.2.156:10001/rxx/GetPose
+Accept: application/json
+###
+
+GET http://10.11.2.156:10001/rxx/ShowPose
+Accept: application/json
+###
+
+//obj上传下载
+GET http://10.11.2.156:10001/rxx/Upload
+Accept: application/json
+###
+
+GET http://10.11.2.156:10001/rxx/Download
+Accept: application/json
+###
+
+GET http://10.11.2.156:10001/rxx/Query
+Accept: application/json
+###

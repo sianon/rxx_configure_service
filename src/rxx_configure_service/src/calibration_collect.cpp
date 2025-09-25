@@ -47,7 +47,7 @@ class Calibration : public rclcpp::Node {
             cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(last_image_, sensor_msgs::image_encodings::BGR8);
 
             std::string filename = std::to_string(images_index_) + ".jpg";
-            cv::imwrite("/home/rxx/hmx/nova_ws_v3/src/calibration/hand_eye_cali/cali_source_data/images/" + filename, cv_ptr->image);
+            cv::imwrite("/home/rxx/rxx_ws/src/rxx_calibration/hand_eye_cali/cali_source_data/images/" + filename, cv_ptr->image);
 
             RCLCPP_INFO(this->get_logger(), "Image saved as %s", filename.c_str());
         } catch (const cv_bridge::Exception& e) {
@@ -58,7 +58,7 @@ class Calibration : public rclcpp::Node {
     }
 
     void InitCalibration(const httplib::Request& req, httplib::Response& resp) {
-        std::filesystem::path dirPath = "/home/rxx/hmx/nova_ws_v3/src/calibration/hand_eye_cali/cali_source_data/";
+        std::filesystem::path dirPath = "/home/rxx/rxx_ws/src/rxx_calibration/hand_eye_cali/cali_source_data";
         int status = -1;
         if (!std::filesystem::exists(dirPath)) {
             std::filesystem::create_directories(dirPath);
@@ -67,7 +67,7 @@ class Calibration : public rclcpp::Node {
             std::cout << "Directory already exists!" << std::endl;
         }
 
-        std::filesystem::path image_path = "/home/rxx/hmx/nova_ws_v3/src/calibration/hand_eye_cali/cali_source_data/images";
+        std::filesystem::path image_path = "/home/rxx/rxx_ws/src/rxx_calibration/hand_eye_cali/cali_source_data/images";
 
         if (!std::filesystem::exists(image_path)) {
             std::filesystem::create_directories(image_path);
@@ -76,7 +76,7 @@ class Calibration : public rclcpp::Node {
             std::cout << "Directory already exists!" << std::endl;
         }
         images_index_ = 1;
-        csv_writer_.OpenCsvFile("/home/rxx/hmx/nova_ws_v3/src/calibration/hand_eye_cali/cali_source_data/poses.csv");
+        csv_writer_.OpenCsvFile("/home/rxx/rxx_ws/src/rxx_calibration/hand_eye_cali/cali_source_data/poses.csv");
         status = 0;
 
         nlohmann::json json_res = {{"data", {{"status", status}, {"err_msg", 0}}}};
@@ -91,13 +91,20 @@ class Calibration : public rclcpp::Node {
         int status = -1;
 
         auto pose_str = GetPose();
-
+        csv_writer_.InsertStringData(ParsePoseString(pose_str));
         bool save_tag = SaveImage();
         if (status != 0 || !save_tag) {
             status = 1;
         }
 
-        nlohmann::json json_res = {{"data", {{"status", status}, {"err_msg", 0}}}};
+        nlohmann::json json_res = {
+            {"data", {
+                {"status", status},
+                {"err_msg", 0},
+                {"point", pose_str}
+                    }
+                }
+        };
 
         resp.set_content(json_res.dump(-1), "application/json");
         resp.status = 200;
@@ -108,19 +115,25 @@ class Calibration : public rclcpp::Node {
     void DoneTriggerPose() {
         auto request = std::make_shared<CalibrationTriggerClient::Request>();
         int status = -1;
-
-        rclcpp::Client<CalibrationTriggerClient>::SharedFuture result_future = calibration_Trigger_client_->async_send_request(request);
-
-        rclcpp::spin_until_future_complete(this->get_node_base_interface(), result_future);
-
-        {
+        std::condition_variable cv;
+        std::mutex mtx;
+        bool finished = false;
+        calibration_Trigger_client_->async_send_request(request, [&](rclcpp::Client<CalibrationTriggerClient>::SharedFuture result_future) -> void{
             auto response = result_future.get();
-            if (response->err_code == 0) {
+            std::unique_lock<std::mutex> lock(mtx);
+
+            if (response->err_code == 0){
                 RCLCPP_INFO(this->get_logger(), "标定成功");
-            } else {
-                RCLCPP_INFO(this->get_logger(), "目标点处理失败");
+            }else{
+                RCLCPP_INFO(this->get_logger(), "标定异常");
             }
-        }
+
+            finished = true;
+            cv.notify_one();
+        });
+
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock, [&]{ return finished; });
     }
 
     void TriggerCalibration(const httplib::Request& req, httplib::Response& resp) {

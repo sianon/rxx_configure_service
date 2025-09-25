@@ -13,8 +13,8 @@ DeviceLaunchConf::DeviceLaunchConf() {
     arm_config_file_path_ = "config/arm_config.yaml";
     std::cout << "Current working directory: " << std::filesystem::current_path() << std::endl;
     grap_config_ = YAML::LoadFile(grap_config_file_path_);
-    arm_config_ = YAML::LoadFile(camera_config_file_path_);
-    camera_config_ = YAML::LoadFile(arm_config_file_path_);
+    arm_config_ = YAML::LoadFile(arm_config_file_path_);
+    camera_config_ = YAML::LoadFile(camera_config_file_path_);
 };
 
 bool DeviceLaunchConf::SaveConfig2File(std::string file_path, YAML::Node node) {
@@ -46,6 +46,7 @@ void DeviceLaunchConf::SetGripPawlConf(const httplib::Request& req, httplib::Res
         std::string name = val["name"];
         int port = val["port"];
         int baud_rate = val["baud_rate"];
+        int selected = val["selected"];
 
         bool flag_found = false;
         for (YAML::const_iterator it = grap_config_.begin(); it != grap_config_.end() & !flag_found; ++it) {
@@ -53,6 +54,7 @@ void DeviceLaunchConf::SetGripPawlConf(const httplib::Request& req, httplib::Res
             if (name == config_name) {
                 grap_config_[name]["port"] = port;
                 grap_config_[name]["baud_rate"] = baud_rate;
+                grap_config_[name]["selected"] = selected;
                 flag_found = true;
             }
         }
@@ -64,18 +66,19 @@ void DeviceLaunchConf::SetGripPawlConf(const httplib::Request& req, httplib::Res
 
 void DeviceLaunchConf::GetGripPawlConf(const httplib::Request& req, httplib::Response& resp) {
     nlohmann::json grip_list = nlohmann::json::array();
-
+    auto cur_selected = "";
     for (YAML::const_iterator it = grap_config_.begin(); it != grap_config_.end(); ++it) {
         auto config_name = it->first.as<std::string>();
 
         int port = it->second["port"].as<int>();
         int baud_rate = it->second["baud_rate"].as<int>();
+        int selected = it->second["selected"].as<int>();
 
         std::cout << config_name << " Configuration:" << std::endl;
         std::cout << "Port: " << port << std::endl;
         std::cout << "Baud Rate: " << baud_rate << std::endl;
         std::cout << "--------------------------" << std::endl;
-        nlohmann::json intf = {{"name", config_name}, {"port", port}, {"baud_rate", baud_rate}};
+        nlohmann::json intf = {{"name", config_name}, {"port", port}, {"baud_rate", baud_rate}, {"selected", selected}};
 
         grip_list.push_back(intf);
     }
@@ -94,11 +97,12 @@ void DeviceLaunchConf::GetArmConf(const httplib::Request& req, httplib::Response
         auto config_name = it->first.as<std::string>();
 
         auto ip = it->second["ip_address"].as<std::string>();
+        int selected = it->second["selected"].as<int>();
 
         std::cout << config_name << " Configuration:" << std::endl;
         std::cout << "ip: " << ip << std::endl;
         std::cout << "--------------------------" << std::endl;
-        nlohmann::json intf = {{"name", config_name}, {"ip_addres", ip}};
+        nlohmann::json intf = {{"name", config_name}, {"ip_addres", ip}, {"selected", selected}};
 
         arm_list.push_back(intf);
     }
@@ -117,12 +121,14 @@ void DeviceLaunchConf::SetArmConf(const httplib::Request& req, httplib::Response
     for (auto& val : interface_data) {
         std::string name = val["name"];
         std::string ip = val["ip_address"];
+        int selected = val["selected"];
 
         bool flag_found = false;
         for (YAML::const_iterator it = arm_config_.begin(); it != arm_config_.end() & !flag_found; ++it) {
             auto config_name = it->first.as<std::string>();
             if (name == config_name) {
                 arm_config_[name]["ip_address"] = ip;
+                arm_config_[name]["selected"] = selected;
                 flag_found = true;
             }
         }
@@ -138,12 +144,13 @@ void DeviceLaunchConf::GetCameraConf(const httplib::Request& req, httplib::Respo
         auto config_name = it->first.as<std::string>();
 
         int seria_num = it->second["seria_num"].as<int>();
+        int selected = it->second["selected"].as<int>();
 
         std::cout << config_name << " Configuration:" << std::endl;
         std::cout << "Port: " << seria_num << std::endl;
         std::cout << "--------------------------" << std::endl;
 
-        nlohmann::json intf = {{"name", config_name}, {"seria_num", seria_num}};
+        nlohmann::json intf = {{"name", config_name}, {"seria_num", seria_num}, {"selected", selected}};
 
         camera_list.push_back(intf);
     }
@@ -161,12 +168,14 @@ void DeviceLaunchConf::SetCameraConf(const httplib::Request& req, httplib::Respo
     for (auto& val : interface_data) {
         std::string name = val["name"];
         std::string serial_num = val["seria_num"];
+        int selected = val["selected"];
 
         bool flag_found = false;
         for (YAML::const_iterator it = camera_config_.begin(); it != camera_config_.end() & !flag_found; ++it) {
             auto config_name = it->first.as<std::string>();
             if (name == config_name) {
                 camera_config_[name]["seria_num"] = serial_num;
+                camera_config_[name]["selected"] = selected;
                 flag_found = true;
             }
         }

@@ -1,5 +1,7 @@
 d435:
   seria_num: "10002"
+  selected: 0
 
 test_grap1:
   seria_num: "10003"
+  selected: 1

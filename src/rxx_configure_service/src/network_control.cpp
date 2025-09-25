@@ -152,9 +152,9 @@ void NetworkControl::GetPose(const httplib::Request& req, httplib::Response& res
     std::cout << "HTTP GetPose: " << pose << std::endl;
     nlohmann::json json_resp;
     if (res) {
-        json_resp = {"status", 1, "pose", "", "err_msg", "arm error"};
+        json_resp = {{{"status", 1}, {"pose", ""}, {"err_msg", "arm error"}}};
     } else {
-        json_resp = {"status", 0, "pose", pose, "err_msg", ""};
+        json_resp = {{"status", 0}, {"pose", pose}, {"err_msg", ""}};
     }
 
     resp.set_content(json_resp.dump(-1), "application/json");
@@ -298,7 +298,8 @@ void NetworkControl::DbListenEvent() {
         auto res = cli.Get(t_url);
         if (!res || res) {
             std::cout << "db connect error" << std::endl;
-            return;
+            sleep(2);
+            continue;
         }
         auto tmp = nlohmann::json::parse(res->body);
         if (!tmp.contains("results")) {
