@@ -10,9 +10,13 @@
 class NetworkControl {
    public:
     NetworkControl() { models_data_path_ = "/home/rxx/jk/amodels/"; };
-    ~NetworkControl() { http_server_.stop(); };
+    ~NetworkControl(){
+        http_server_.stop();
+        http_thread_.join();
+    };
 
     bool InitHttpService(int port);
+    void StartHttpService();
     void ClientGetHttpFunc();
     void ClientPostHttpFunc();
     void SetCalibrationNode(std::shared_ptr<Calibration> node);

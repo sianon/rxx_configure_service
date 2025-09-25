@@ -2,6 +2,6 @@ build
 install
 log
 .idea
-src/calibration/cmake-build-debug
+src/rxx_configure_service/cmake-build-debug
 .vscode
 *.env

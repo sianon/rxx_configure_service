@@ -6,7 +6,7 @@ def generate_launch_description():
 
     action_node_turtle_control = launch_ros.actions.Node(
         package='calibration',
-        executable="network_test",
+        executable="rxx_configure_service",
         output='screen',
   #       parameters=[{'max_speed': launch.substitutions.LaunchConfiguration(
   # 'launch_max_speed', default='2.0')}],

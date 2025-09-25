@@ -13,18 +13,28 @@ bool NetworkControl::InitHttpService(int port)
     device_config_ = std::make_shared<DeviceLaunchConf>();
     last_seq = "now";
     db_name_ = "/my_database/";
-    // FetchDB();
     ClientGetHttpFunc();
     ClientPostHttpFunc();
     db_listen_ = std::thread(std::bind(&NetworkControl::DbListenEvent, this));
-    // db_listen_.detach();
-    http_server_.listen("0.0.0.0", port_);
-    // http_thread_ = std::thread(std::bind([&]() {
-    //     std::cout << "HTTP server is running on port " << port_ << std::endl;
-    //     http_server_.listen("0.0.0.0", port_);
-    // }));
+    // StartHttpService();
+    // http_server_.listen("0.0.0.0", port_);
+    http_thread_ = std::thread([this]() ->void
+    {
+        StartHttpService();
+    });
 
     return true;
+}
+void NetworkControl::StartHttpService(){
+    std::cout << "HTTP server is running on port " << port_ << std::endl;
+    http_server_.set_socket_options([](socket_t sock)
+    {
+        int yes = 1;
+        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+        return true;
+    });
+
+    http_server_.listen("0.0.0.0", port_);
 }
 
 void NetworkControl::ClientGetHttpFunc() {
@@ -107,6 +117,7 @@ void NetworkControl::FileUpload(const httplib::Request& req, httplib::Response& 
 
     nlohmann::json json_res = {{"data", {{"status", status}, {"err_msg", 0}}}};
 
+
     resp.set_content(json_res.dump(-1), "application/json");
     resp.status = 200;
     resp.reason = "OK";
@@ -135,10 +146,10 @@ void NetworkControl::QueryModelWithUid(const httplib::Request& req, httplib::Res
 }
 
 void NetworkControl::GetPose(const httplib::Request& req, httplib::Response& resp) {
-    // auto pose = calibration_->GetPose();
-    std::string pose = "x,y,z,r,p,y";
-    pose.append(";");
+    auto pose = calibration_->GetPose();
+
     bool res = pose.empty();
+    std::cout << "HTTP GetPose: " << pose << std::endl;
     nlohmann::json json_resp;
     if (res) {
         json_resp = {"status", 1, "pose", "", "err_msg", "arm error"};
@@ -160,12 +171,12 @@ void NetworkControl::ShowPose(const httplib::Request& req, httplib::Response& re
     auto type = req_info["type"];
 
     if (type == "pick_up") {
-        // TODO;
+        //TODO;
     } else {
-        // TODO;
+        //TODO;
     }
 
-    auto pose = calibration_->GetPose();
+    // auto pose = calibration_->GetPose();
     nlohmann::json json_resp = {"status", 0, "err_msg", ""};
 
     resp.set_content(json_resp.dump(-1), "application/json");

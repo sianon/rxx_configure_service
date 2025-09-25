@@ -1,5 +1,5 @@
-// #ifndef CALIBRATIONCOLLECT_H
-// #define CALIBRATIONCOLLECT_H
+#ifndef CALIBRATIONCOLLECT_H
+#define CALIBRATIONCOLLECT_H
 
 #include <chrono>
 #include <cstdlib>
@@ -14,9 +14,7 @@
 
 #include "geometry_msgs/msg/pose.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-// #include "sensor_msgs/Image.h"
 #include <cv_bridge/cv_bridge.h>
-#include <tf2/LinearMath/Quaternion.h>
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -29,14 +27,17 @@ using CalibrationTriggerClient = calibration_srv::srv::CalibrationEyeInHand;
 
 class Calibration : public rclcpp::Node {
    public:
-    Calibration() : Node("calibration_control"), images_index_(1) {
+    Calibration() : Node("calibration_controls")
+    , images_index_(1) {
         rgb_sensor_subscription_ = this->create_subscription<sensor_msgs::msg::Image>("/camera/camera/color/image_raw", 10, std::bind(&Calibration::on_rgb_image_received_, this, std::placeholders::_1));
 
         get_pose_client_ = this->create_client<GetPoseClient>("/dobot_bringup_v3/srv/GetPose");
         timer_ = this->create_wall_timer(10s, std::bind(&Calibration::TimerCallback, this));
 
         calibration_Trigger_client_ = this->create_client<CalibrationTriggerClient>("/Calibration/EyeInHand");
-        timer_calibration_ = this->create_wall_timer(10s, std::bind(&Calibration::TimerCallback, this));
+        // timer_calibration_ = this->create_wall_timer(10s, std::bind(&Calibration::TimerCallback, this));
+
+        // test_timer_ = this->create_wall_timer(6s, std::bind(&Calibration::GetPose, this));
     }
 
     bool SaveImage() {
@@ -89,22 +90,7 @@ class Calibration : public rclcpp::Node {
         auto request = std::make_shared<GetPoseClient::Request>();
         int status = -1;
 
-        request->user;
-        request->tool;
-        rclcpp::Client<GetPoseClient>::SharedFuture result_future = get_pose_client_->async_send_request(request);
-        rclcpp::spin_until_future_complete(this->get_node_base_interface(), result_future);
-
-        {
-            auto response = result_future.get();
-            if (response->res == 0) {
-                auto pose_str = this->ParsePoseString(response->pose);
-                csv_writer_.InsertStringData(pose_str);
-                RCLCPP_INFO(this->get_logger(), "目标点处理成功");
-                status = 0;
-            } else {
-                RCLCPP_INFO(this->get_logger(), "目标点处理失败");
-            }
-        }
+        auto pose_str = GetPose();
 
         bool save_tag = SaveImage();
         if (status != 0 || !save_tag) {
@@ -176,31 +162,39 @@ class Calibration : public rclcpp::Node {
         std::string res;
         size_t start = input.find("{");
         std::string errorID = input.substr(0, start - 1);
-        std::cout << "ErrorID: " << errorID << std::endl;
 
         start = input.find("{") + 1;
         size_t end = input.find("}");
         std::string pose = input.substr(start, end - start);
-        std::cout << "Pose: " << pose << std::endl;
 
         return pose;
     }
 
     std::string GetPose() {
         auto request = std::make_shared<GetPoseClient::Request>();
+        std::condition_variable cv;
+        std::mutex mtx;
+        bool finished = false;
         std::string pose_str = "";
         request->user;
         request->tool;
-        rclcpp::Client<GetPoseClient>::SharedFuture result_future = get_pose_client_->async_send_request(request);
-        rclcpp::spin_until_future_complete(this->get_node_base_interface(), result_future);
+        get_pose_client_->async_send_request(request, [&](rclcpp::Client<GetPoseClient>::SharedFuture result_future) -> void{
+          auto response = result_future.get();
+          if (response->res == 0){
+              std::cout << "pose:"<<response->pose<<std::endl;
+              auto tmp = response->pose;
+              pose_str = ParsePoseString(tmp);
+              std::unique_lock<std::mutex> lock(mtx);
+                finished = true;
+                cv.notify_one();
+              RCLCPP_INFO(this->get_logger(), "目标点处理成功");
+          }else{
+              RCLCPP_INFO(this->get_logger(), "目标点处理失败");
+          }
+        });
 
-        auto response = result_future.get();
-        if (response->res == 0) {
-            pose_str = this->ParsePoseString(response->pose);
-            RCLCPP_INFO(this->get_logger(), "目标点处理成功");
-        } else {
-            RCLCPP_INFO(this->get_logger(), "目标点处理失败");
-        }
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock, [&]{ return finished; });
 
         return pose_str;
     }
@@ -222,7 +216,6 @@ class Calibration : public rclcpp::Node {
         RCLCPP_INFO(this->get_logger(), "Orientation -> roll: %.2f, pitch: %.2f, yaw: %.2f", roll, pitch, yaw);
     }
     void on_rgb_image_received_(const sensor_msgs::msg::Image::SharedPtr msg) {
-        RCLCPP_INFO(this->get_logger(), "Received Image");
         last_image_ = msg;
     }
 
@@ -234,9 +227,10 @@ class Calibration : public rclcpp::Node {
 
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::TimerBase::SharedPtr timer_calibration_;
+    rclcpp::TimerBase::SharedPtr test_timer_;
     CSVWriter csv_writer_;
     sensor_msgs::msg::Image::SharedPtr last_image_;
     int images_index_;
 };
 
-// #endif //CALIBRATIONCOLLECT_H
+#endif //CALIBRATIONCOLLECT_H

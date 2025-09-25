@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(calibration)
+project(rxx_configure_service)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -33,7 +33,7 @@ include_directories(include)
 include_directories(${OpenCV_INCLUDE_DIR})
 link_directories(${OpenCV_LIB_DIR})
 
-add_executable(network_test src/network_test.cpp
+add_executable(rxx_configure_service src/main.cpp
         src/network_config.cpp
         src/network_config.h
         src/network_control.cpp
@@ -46,11 +46,11 @@ add_executable(network_test src/network_test.cpp
         include/base64.cpp
         include/Kutil.cpp
         include/Kutil.h)
-target_link_libraries(network_test yaml-cpp)
-ament_target_dependencies(network_test rclcpp geometry_msgs sensor_msgs dobot_msgs_v3 cv_bridge tf2_geometry_msgs calibration_srv)
+target_link_libraries(rxx_configure_service yaml-cpp)
+ament_target_dependencies(rxx_configure_service rclcpp geometry_msgs sensor_msgs dobot_msgs_v3 cv_bridge tf2_geometry_msgs calibration_srv)
 
 install(TARGETS
-        network_test
+        rxx_configure_service
 #        calibration_test
         DESTINATION lib/${PROJECT_NAME}
 )
