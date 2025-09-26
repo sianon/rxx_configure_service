@@ -27,7 +27,7 @@ using CalibrationTriggerClient = calibration_srv::srv::CalibrationEyeInHand;
 
 class Calibration : public rclcpp::Node {
    public:
-    Calibration() : Node("calibration_controls")
+    Calibration() : Node("rxx_configure_service")
     , images_index_(1) {
         rgb_sensor_subscription_ = this->create_subscription<sensor_msgs::msg::Image>("/camera/camera/color/image_raw", 10, std::bind(&Calibration::on_rgb_image_received_, this, std::placeholders::_1));
 
@@ -35,9 +35,14 @@ class Calibration : public rclcpp::Node {
         timer_ = this->create_wall_timer(10s, std::bind(&Calibration::TimerCallback, this));
 
         calibration_Trigger_client_ = this->create_client<CalibrationTriggerClient>("/Calibration/EyeInHand");
-        // timer_calibration_ = this->create_wall_timer(10s, std::bind(&Calibration::TimerCallback, this));
 
-        // test_timer_ = this->create_wall_timer(6s, std::bind(&Calibration::GetPose, this));
+        this->declare_parameter("calibration_path", "/opt/rxx_calibration");
+        this->get_parameter("calibration_path", rxx_calibration_path_);
+
+        rxx_calibration_img_path_ = rxx_calibration_path_ + "/images/";
+
+        std::cout << "rxx_calibration_path:" << rxx_calibration_path_ << std::endl;
+        // timer_calibration_ = this->create_wall_timer(10s, std::bind(&Calibration::TimerCallback, this));
     }
 
     bool SaveImage() {
@@ -47,7 +52,8 @@ class Calibration : public rclcpp::Node {
             cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(last_image_, sensor_msgs::image_encodings::BGR8);
 
             std::string filename = std::to_string(images_index_) + ".jpg";
-            cv::imwrite("/home/rxx/rxx_ws/src/rxx_calibration/hand_eye_cali/cali_source_data/images/" + filename, cv_ptr->image);
+            auto img_path = rxx_calibration_img_path_ + filename;
+            cv::imwrite(img_path, cv_ptr->image);
 
             RCLCPP_INFO(this->get_logger(), "Image saved as %s", filename.c_str());
         } catch (const cv_bridge::Exception& e) {
@@ -58,25 +64,22 @@ class Calibration : public rclcpp::Node {
     }
 
     void InitCalibration(const httplib::Request& req, httplib::Response& resp) {
-        std::filesystem::path dirPath = "/home/rxx/rxx_ws/src/rxx_calibration/hand_eye_cali/cali_source_data";
         int status = -1;
-        if (!std::filesystem::exists(dirPath)) {
-            std::filesystem::create_directories(dirPath);
+        if (!std::filesystem::exists(rxx_calibration_path_)) {
+            std::filesystem::create_directories(rxx_calibration_path_);
             std::cout << "Directory created!" << std::endl;
         } else {
             std::cout << "Directory already exists!" << std::endl;
         }
 
-        std::filesystem::path image_path = "/home/rxx/rxx_ws/src/rxx_calibration/hand_eye_cali/cali_source_data/images";
-
-        if (!std::filesystem::exists(image_path)) {
-            std::filesystem::create_directories(image_path);
+        if (!std::filesystem::exists(rxx_calibration_img_path_)) {
+            std::filesystem::create_directories(rxx_calibration_img_path_);
             std::cout << "Directory created!" << std::endl;
         } else {
             std::cout << "Directory already exists!" << std::endl;
         }
         images_index_ = 1;
-        csv_writer_.OpenCsvFile("/home/rxx/rxx_ws/src/rxx_calibration/hand_eye_cali/cali_source_data/poses.csv");
+        csv_writer_.OpenCsvFile(rxx_calibration_path_ + "/poses.csv");
         status = 0;
 
         nlohmann::json json_res = {{"data", {{"status", status}, {"err_msg", 0}}}};
@@ -243,6 +246,8 @@ class Calibration : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr test_timer_;
     CSVWriter csv_writer_;
     sensor_msgs::msg::Image::SharedPtr last_image_;
+    std::string rxx_calibration_path_;
+    std::string rxx_calibration_img_path_;
     int images_index_;
 };
 

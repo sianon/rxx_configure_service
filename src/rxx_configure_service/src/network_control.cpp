@@ -7,12 +7,11 @@
 #include <iostream>
 bool NetworkControl::InitHttpService(int port)
 {
-    port_ = port;
+    // http_listen_port_ = port;
     http_server_.set_base_dir("./");
     network_config_ = std::make_shared<NetworkConfig>();
     device_config_ = std::make_shared<DeviceLaunchConf>();
     last_seq = "now";
-    db_name_ = "/my_database/";
     ClientGetHttpFunc();
     ClientPostHttpFunc();
     db_listen_ = std::thread(std::bind(&NetworkControl::DbListenEvent, this));
@@ -26,7 +25,7 @@ bool NetworkControl::InitHttpService(int port)
     return true;
 }
 void NetworkControl::StartHttpService(){
-    std::cout << "HTTP server is running on port " << port_ << std::endl;
+    std::cout << "http server is running on port " << http_listen_port_ << std::endl;
     http_server_.set_socket_options([](socket_t sock)
     {
         int yes = 1;
@@ -34,7 +33,7 @@ void NetworkControl::StartHttpService(){
         return true;
     });
 
-    http_server_.listen("0.0.0.0", port_);
+    http_server_.listen("0.0.0.0", http_listen_port_);
 }
 
 void NetworkControl::ClientGetHttpFunc() {
@@ -66,6 +65,22 @@ void NetworkControl::ClientPostHttpFunc() {
 
 void NetworkControl::SetCalibrationNode(std::shared_ptr<Calibration> node) {
     calibration_ = node;
+    calibration_->declare_parameter("3d_models_path", "/opt/rxx_3d_model");
+    calibration_->get_parameter("3d_models_path", model_3d_path_);
+
+    calibration_->declare_parameter("couchdb_addr", "");
+    calibration_->get_parameter("couchdb_addr", couchdb_addr_);
+
+    calibration_->declare_parameter("couchdb_db_name", "");
+    calibration_->get_parameter("couchdb_db_name", db_name_);
+
+    calibration_->declare_parameter("http_port", -1);
+    calibration_->get_parameter("http_port", http_listen_port_);
+
+    std::cout << "3d_models_path:" << model_3d_path_ << std::endl;
+    std::cout << "couchdb_addr:" << couchdb_addr_ << std::endl;
+    std::cout << "db_name:" << db_name_ << std::endl;
+    std::cout << "http_listen_port:" << http_listen_port_ << std::endl;
 }
 
 void NetworkControl::FileDownload(const httplib::Request& req, httplib::Response& resp) {
@@ -283,9 +298,8 @@ bool NetworkControl::test() {
     return true;
 }
 void NetworkControl::DbListenEvent() {
-    httplib::Client cli("http://10.11.2.84:5984");
+    httplib::Client cli(couchdb_addr_);
     last_seq = "now";
-    db_name_ = "/rxx/";
     std::string username = "admin";
     std::string password = "rxx123456";
     std::string auth = username + ":" + password;
@@ -295,8 +309,9 @@ void NetworkControl::DbListenEvent() {
 
     while (true) {
         std::string t_url = db_name_ + "_changes" + "?include_docs=true&feed=longpoll&since=" + last_seq;
+        std::cout << t_url << std::endl;
         auto res = cli.Get(t_url);
-        if (!res || res) {
+        if (!res) {
             std::cout << "db connect error" << std::endl;
             sleep(2);
             continue;
@@ -324,7 +339,7 @@ void NetworkControl::DbListenEvent() {
 
             auto filename = items.begin().key();
             std::string url = db_name_ + id + "/" + filename;
-            std::string pat = models_data_path_ + filename;
+            std::string pat = model_3d_path_ + filename;
             std::cout << url << std::endl;
             AddFileName(cli, va["doc"]);
             DownloadDbObj2Disk(cli, id, url, filename);
@@ -335,7 +350,7 @@ void NetworkControl::DbListenEvent() {
 }
 
 bool NetworkControl::DownloadDbObj2Disk(httplib::Client& cli, std::string id, std::string url, std::string name) {
-    std::string file_pat = models_data_path_ + id + "/";
+    std::string file_pat = model_3d_path_ + id + "/";
     bool res = true;
     if (!std::filesystem::exists(file_pat)) {
         res = std::filesystem::create_directory(file_pat);
@@ -353,7 +368,7 @@ bool NetworkControl::DownloadDbObj2Disk(httplib::Client& cli, std::string id, st
 }
 
 bool NetworkControl::DownloadDbPose2Disk(std::string id, std::string name, nlohmann::json doc) {
-    std::string file_pat = models_data_path_ + id + "/";
+    std::string file_pat = model_3d_path_ + id + "/";
     bool res = true;
 
     if (!doc.contains("pose")) {

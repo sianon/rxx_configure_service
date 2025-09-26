@@ -9,7 +9,7 @@
 
 class NetworkControl {
    public:
-    NetworkControl() { models_data_path_ = "/home/rxx/jk/amodels/"; };
+    NetworkControl(){};
     ~NetworkControl(){
         http_server_.stop();
         http_thread_.join();
@@ -39,7 +39,8 @@ class NetworkControl {
     std::map<std::string, nlohmann::json> GetAllModels() { return all_model_json_b64; };
 
    private:
-    int port_ = 10001;
+    int http_listen_port_ = 10001;
+    std::string couchdb_addr_;
     httplib::Server http_server_;
     std::shared_ptr<Calibration> calibration_;
     std::shared_ptr<NetworkConfig> network_config_;
@@ -50,7 +51,7 @@ class NetworkControl {
     std::thread http_thread_;
     std::string last_seq;
     std::map<std::string, nlohmann::json> will_be_process_evt_;
-    std::string models_data_path_;
+    std::string model_3d_path_;
 };
 
 #endif  // NETWORKCONTROL_H
